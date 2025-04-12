@@ -1,0 +1,126 @@
+// Ultrasonic Sensor Pins
+const int trigPin = 13;
+const int echoPin = 12;
+
+// Passive Buzzer
+const int buzzer = 11;
+
+// LED Pins
+const int greenLED = 10;
+const int yellowLED = 9;
+const int redLED = 8;
+
+// Distance measurement variables
+long duration;
+double distance;
+
+// Distance thresholds (in inches)
+double greenZone = 54;
+double redZone = 30;
+
+// Timing for buzzer pulse
+unsigned long previousBeepTime = 0;
+int beepInterval = 0;
+int pitch = 0;
+
+// Speed tracking for threat movement
+unsigned long previousTime = 0;
+double previousDistance = 0;
+double speed = 0;
+
+void setup() {
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(buzzer, OUTPUT);
+  pinMode(greenLED, OUTPUT);
+  pinMode(yellowLED, OUTPUT);
+  pinMode(redLED, OUTPUT);
+
+  digitalWrite(greenLED, LOW);
+  digitalWrite(yellowLED, LOW);
+  digitalWrite(redLED, LOW);
+  noTone(buzzer);
+
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Trigger the ultrasonic sensor
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // Read echo time and convert to inches
+  duration = pulseIn(echoPin, HIGH);
+  distance = (duration * 0.034 / 2) / 2.54;
+
+  // Calculate the speed of the approaching object (in cm/s)
+  unsigned long currentTime = millis();
+  if (currentTime - previousTime >= 50) { // Update every 50ms
+    speed = (previousDistance - distance) / (currentTime - previousTime) * 1000; // cm/s
+    previousDistance = distance;
+    previousTime = currentTime;
+  }
+
+  // Display speed
+  Serial.print("Speed: ");
+  Serial.print(speed);
+  Serial.println(" cm/s");
+
+  // Zone detection and output
+  String threatLevel = "Low";  // Default threat level
+
+  if (distance > greenZone) {
+    digitalWrite(greenLED, HIGH);
+    digitalWrite(yellowLED, LOW);
+    digitalWrite(redLED, LOW);
+    noTone(buzzer);
+    threatLevel = "Low";
+  } 
+  else if (distance <= greenZone && distance > redZone) {
+    digitalWrite(greenLED, LOW);
+    digitalWrite(yellowLED, HIGH);
+    digitalWrite(redLED, LOW);
+    noTone(buzzer);
+    threatLevel = "Medium";
+  } 
+  else {
+    digitalWrite(greenLED, LOW);
+    digitalWrite(yellowLED, LOW);
+
+    // Set pitch and beep interval based on proximity
+    if (distance > 20) {
+      beepInterval = 500;
+      pitch = 800;
+    } else if (distance > 10) {
+      beepInterval = 200;
+      pitch = 1200;
+    } else {
+      beepInterval = 80;
+      pitch = 1800;
+    }
+
+    // Beep + Flicker red LED (simulated threat detection)
+    unsigned long currentTime = millis();
+    if (currentTime - previousBeepTime >= beepInterval) {
+      tone(buzzer, pitch);
+      digitalWrite(redLED, HIGH);
+      delay(50);
+      noTone(buzzer);
+      digitalWrite(redLED, LOW);
+      previousBeepTime = currentTime;
+    }
+    threatLevel = "High";
+  }
+
+  // Display distance and threat level in Serial Monitor
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.print(" inches, ");
+  Serial.print("Threat Level: ");
+  Serial.println(threatLevel);
+
+  delay(50); // Smooth loop timing
+}
